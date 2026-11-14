@@ -166,3 +166,23 @@ The browser's native print dialog handles PDF creation. Select **Print digital c
 - Requests containing three or more questions are marked as over-ask, create a warning notification for the person, and show a warning in the person's consent inbox. The person can still approve selected questions or deny the request.
 - Activity History includes keyword search and filters for request created, approved, rejected, revoked, expired and card activity.
 - Credential upload includes an editable custom type when “Other credential” is selected.
+
+
+## Deploying this demo to Vercel
+
+This repository includes a Vercel catch-all function at `api/[...path].js` and a
+`vercel.json` rewrite so the existing Express-free Node HTTP handler can serve
+both the frontend and `/api/*` routes.
+
+The Vercel runtime's application directory is read-only. When `VERCEL` is set,
+the demo therefore writes its JSON data file to `/tmp/pramaan-data.json` rather
+than trying to write beside `server.js`. This prevents the `EROFS` startup
+crash shown in the Vercel runtime logs.
+
+**Important:** Vercel's `/tmp` storage is temporary and may be cleared between
+function instances or invocations. This makes the deployment suitable for a
+prototype/demo only; user accounts, requests, and history are not reliably
+persistent across visits. Before using this with real users, connect a hosted
+database (for example, a managed PostgreSQL or serverless database) and move
+the data layer to it. The demo OTP, simulated agency records, and verification
+answers remain simulated.

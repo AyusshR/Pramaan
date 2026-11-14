@@ -15,7 +15,12 @@ const crypto = require('node:crypto');
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
-const DATA_FILE = path.join(__dirname, 'data.json');
+// Vercel's deployed code directory is read-only. Use /tmp there so the
+// demo can start; local development continues to use ./data.json.
+// Note: /tmp is ephemeral and is NOT a production database.
+const DATA_FILE = process.env.VERCEL
+  ? path.join('/tmp', 'pramaan-data.json')
+  : path.join(__dirname, 'data.json');
 const DEMO_OTP = '123456';
 const MAX_BODY_BYTES = 1_000_000;
 
@@ -616,12 +621,21 @@ function serveStatic(response, pathname) {
   });
 }
 
-const server = http.createServer(async (request, response) => {
+// Shared request handler: used by both the local HTTP server and Vercel.
+async function handler(request, response) {
   try {
-    const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
+    const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
+
+    // vercel.json rewrites public paths through /api/[...path]. Remove that
+    // internal prefix to recover the original app route.
+    if (process.env.VERCEL && url.pathname.startsWith('/api/')) {
+      url.pathname = url.pathname.slice(4) || '/';
+      if (!url.pathname.startsWith('/')) url.pathname = `/${url.pathname}`;
+    }
+
     if (url.pathname.startsWith('/api/')) {
       await handleApi(request, response, url);
-    } else if (request.method === 'GET') {
+    } else if (request.method === 'GET' || request.method === 'HEAD') {
       serveStatic(response, url.pathname);
     } else {
       sendError(response, 405, 'Method not allowed.');
@@ -630,10 +644,16 @@ const server = http.createServer(async (request, response) => {
     console.error('Request failed:', error);
     if (!response.headersSent) sendError(response, error.statusCode || 500, error.message || 'Internal server error.');
   }
-});
+}
 
-server.listen(PORT, () => {
-  console.log(`Pramaan demo is running at http://localhost:${PORT}`);
-  console.log(`Demo OTP: ${DEMO_OTP}`);
-  console.log('Reminder: agency records and verification results are simulated.');
-});
+module.exports = handler;
+
+// Keep the original local development workflow: npm start
+if (require.main === module) {
+  const server = http.createServer(handler);
+  server.listen(PORT, () => {
+    console.log(`Pramaan demo is running at http://localhost:${PORT}`);
+    console.log(`Demo OTP: ${DEMO_OTP}`);
+    console.log('Reminder: agency records and verification results are simulated.');
+  });
+}
