@@ -26,6 +26,11 @@ const MAX_BODY_BYTES = 1_000_000;
 
 // PRAMAAN CARD IDS: new cards use PR-. Legacy CT- IDs remain valid.
 const normalizeCardId = value => String(value || '').trim().toUpperCase().replace(/^CT-/, 'PR-');
+const createUniqueCardId = () => {
+  let id;
+  do { id = `PR-${randomHex(5)}`; } while (Object.values(database.users).some(user => normalizeCardId(user.card?.id) === id));
+  return id;
+};
 
 // -----------------------------------------------------------------------------
 // 1. Persistent demo data and in-memory sessions
@@ -412,7 +417,7 @@ async function handleApi(request, response, url) {
     const user = database.users[phone];
     if (user.card?.status === 'active') return sendError(response, 400, 'You already have an active card.');
     const cardType = body.type === 'Physical' ? 'Physical' : 'Digital';
-    user.card = { id: (user.card?.id ? normalizeCardId(user.card.id) : `PR-${randomHex(3)}`), type: cardType, status: 'active', issuedAt: user.card?.issuedAt || now() };
+    user.card = { id: (user.card?.id ? normalizeCardId(user.card.id) : createUniqueCardId()), type: cardType, status: 'active', issuedAt: user.card?.issuedAt || now() };
     addLog(phone, null, `Card issued (${cardType}) after simulated identity check.`);
     saveDatabase();
     return sendJson(response, 200, user.card);

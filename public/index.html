@@ -2242,7 +2242,7 @@
               <div class="card-bottom"><span>${escapeHtml(card.type)} card</span><span>${escapeHtml(card.status.toUpperCase())}</span></div>
               <div id="qrCode" class="qr-box"></div>
             </div>
-            ${card.type === 'Digital' ? '<button class="button primary no-print" onclick="printDigitalCard()">Print digital card / Save as PDF</button>' : ''}
+            ${card.status === 'active' ? '<button class="button primary no-print" onclick="printDigitalCard()">Download printable card PDF</button>' : ''}
             <p class="muted">Issued ${formatDate(card.issuedAt)}. The QR contains only a reference link. The person scanning it still needs to sign in and send a request; you must approve before any answer is shared.</p>
             ${card.status === 'active'
             ? '<button class="button danger" onclick="disableCard()">Disable lost card</button>'
@@ -2259,9 +2259,48 @@
     }
 
     function printDigitalCard() {
-      const card = $('#printableIdentityCard');
-      if (!card) return showToast('Digital card is not available.');
-      window.print();
+      if (!state.user?.card || state.user.card.status !== 'active') return showToast('An active Pramaan card is required.');
+      const person = state.user;
+      const card = person.card;
+      const qrCanvas = $('#qrCode canvas');
+      const qrImage = $('#qrCode img');
+      const qrData = qrCanvas?.toDataURL('image/png') || qrImage?.src;
+      if (!qrData) return showToast('The card QR is still loading. Please try again.');
+      const popup = window.open('', '_blank');
+      if (!popup) return showToast('Allow pop-ups to print your card.');
+      const safeName = escapeHtml(person.name || 'Pramaan user');
+      const safeId = escapeHtml(displayCardId(card.id));
+      const issued = new Date(card.issuedAt || Date.now());
+      const issuedLabel = `${String(issued.getMonth() + 1).padStart(2, '0')}/${String(issued.getFullYear()).slice(-2)}`;
+      popup.addEventListener('load', () => setTimeout(() => { popup.focus(); popup.print(); }, 350));
+      popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Pramaan Identity Pass</title>
+        <style>
+          @page { size: 91.6mm 60.15mm; margin: 0; }
+          * { box-sizing: border-box; }
+          html, body { margin: 0; padding: 0; width: 91.6mm; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: Arial, Helvetica, sans-serif; }
+          .side { width: 91.6mm; height: 60.15mm; position: relative; overflow: hidden; page-break-after: always; break-after: page; background-size: 100% 100%; background-repeat: no-repeat; }
+          .side:last-child { page-break-after: auto; break-after: auto; }
+          .patch { position: absolute; background: rgba(91, 48, 143, .96); color: #fff; }
+          .front-name { left: 8mm; top: 7.2mm; width: 36mm; height: 5.2mm; padding-top: .2mm; font-size: 3.2mm; letter-spacing: .55mm; font-weight: 700; white-space: nowrap; overflow: hidden; }
+          .back-name { left: 8mm; top: 15.5mm; width: 39mm; height: 6.7mm; padding-top: .5mm; font-size: 4.2mm; font-weight: 700; white-space: nowrap; overflow: hidden; }
+          .dob { left: 8mm; top: 27.2mm; width: 25mm; height: 4.2mm; padding-top: .1mm; font-size: 3.2mm; font-weight: 600; }
+          .issued { left: 8mm; top: 36.7mm; width: 20mm; height: 4.2mm; padding-top: .1mm; font-size: 3.2mm; font-weight: 600; }
+          .number { left: 8mm; top: 43.4mm; width: 41mm; height: 5.7mm; padding-top: .1mm; font-family: 'Courier New', monospace; font-size: 4.5mm; letter-spacing: .75mm; font-weight: 700; white-space: nowrap; }
+          .qr-patch { position: absolute; left: 61.5mm; top: 14.7mm; width: 22mm; height: 22mm; padding: 1mm; background: #6b399d; }
+          .qr-patch img { width: 20mm; height: 20mm; display: block; }
+          @media screen { body { background: #555; } .side { margin: 8mm auto; box-shadow: 0 1mm 5mm #222; } }
+        </style></head><body>
+        <section class="side" style="background-image:url('${location.origin}/card-artwork/front.png')"><div class="patch front-name">${safeName.toUpperCase()}</div></section>
+        <section class="side" style="background-image:url('${location.origin}/card-artwork/back.png')">
+          <div class="patch back-name">${safeName.toUpperCase()}</div>
+          <div class="patch dob">NOT VERIFIED</div>
+          <div class="patch issued">${issuedLabel}</div>
+          <div class="patch number">${safeId.replace('-', ' - ')}</div>
+          <div class="qr-patch"><img src="${qrData}" alt="Pramaan verification QR"></div>
+        </section>
+        </body></html>`);
+      popup.document.close();
     }
 
     function cardApplicationForm() {
