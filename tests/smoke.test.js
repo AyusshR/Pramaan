@@ -74,6 +74,10 @@ test('serves the Pramaan web page', async () => {
   assert.match(html, /Prove one fact/);
   assert.match(html, /Consent first/);
   assert.match(html, /printDigitalCard/);
+  assert.match(html, /Download printable card PDF/);
+  const artwork = await fetch(`${baseUrl}/card-artwork/front.png`);
+  assert.equal(artwork.status, 200);
+  assert.match(artwork.headers.get('content-type'), /image\/png/);
   assert.match(html, /uploadCredential/);
   assert.match(html, /overAskWarning/);
   assert.match(html, /Card ID or registered phone number/);
@@ -100,6 +104,7 @@ test('logs in both roles and issues a demo card', async () => {
   });
   assert.equal(issued.status, 200);
   assert.equal(issued.data.status, 'active');
+  assert.match(issued.data.id, /^PR-[A-F0-9]{10}$/);
   cardId = issued.data.id;
 });
 
